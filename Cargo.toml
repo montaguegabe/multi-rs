@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = ["crates/multi-core", "crates/multi-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/montaguegabe/multi-rs"
+rust-version = "1.80"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+thiserror = "2"
+log = "0.4"
+dirs = "6"
+tempfile = "3"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+tiny_http = "0.12"
+open = "5"
+percent-encoding = "2"
+clap = { version = "4", features = ["derive", "wrap_help"] }
+
+[profile.release]
+lto = "thin"
+strip = true
