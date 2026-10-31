@@ -41,9 +41,14 @@ fn add_worktree_uses_name_as_default_branch_in_sibling_directory() {
     assert!(is_git_repo_root(&destination));
     assert_eq!(current_branch(&destination), "feature-test");
     assert_eq!(current_branch(&destination.join("repo0")), "feature-test");
+    // `git worktree list` reports canonical paths (on macOS the temp dir
+    // lives under `/private/var`).
     assert_eq!(
         list_linked_worktree_paths(&ws.root),
-        vec![destination.display().to_string()]
+        vec![std::fs::canonicalize(&destination)
+            .unwrap()
+            .display()
+            .to_string()]
     );
     assert!(list_linked_worktree_paths(&destination).is_empty());
     let _ = std::fs::remove_dir_all(scratch);

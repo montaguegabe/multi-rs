@@ -269,5 +269,10 @@ fn symlinks_reuse_registered_clones_when_enabled() {
         .unwrap()
         .file_type()
         .is_symlink());
-    assert_eq!(std::fs::read_link(&link).unwrap(), existing);
+    // The registry stores canonical paths, so compare against the canonical
+    // clone location (on macOS the temp dir lives under `/private/var`).
+    assert_eq!(
+        std::fs::read_link(&link).unwrap(),
+        std::fs::canonicalize(&existing).unwrap()
+    );
 }
