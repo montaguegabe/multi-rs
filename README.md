@@ -77,6 +77,7 @@ Product-prefixed slugs are shortened to local folder names when they match the w
 | `multi git ARGS...` | Run a git command in the root and every cloned sub-repo |
 | `multi worktree add NAME [--branch B] [--base-ref REF] [--install-set NAME]` | Create an isolated worktree of the whole workspace under the sibling `<workspace>-worktrees/` directory |
 | `multi hooks install\|status [--json]\|uninstall` | Workspace-level git hooks (`hooks.path` in `multi.json`) |
+| `multi skills install [--dev] [--source PATH] [--skill NAME]...` | Install the Multi agent skills: copy the published skills with `npx skills add`, or with `--dev` symlink a local `multi-skills` checkout by running its `scripts/install-dev.sh` |
 | `multi doctor [--strict] [--json] [--fix] [--no-remote-check]` | Diagnose workspace configuration issues |
 | `multi collaborator add\|accept\|remove\|recent-users` | Manage GitHub collaborators across every workspace repo via `gh` |
 | `multi convert-monorepo --confirm` | Convert a standard workspace to monorepo mode (destructive) |

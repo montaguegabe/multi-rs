@@ -17,6 +17,7 @@ use multi_core::git_run::run_git_in_all_repos;
 use multi_core::hooks::{format_status, hooks_status, install_hooks, uninstall_hooks};
 use multi_core::ignore_files::update_gitignore_with_generated_files;
 use multi_core::init::{run_init, InitInputs};
+use multi_core::skills::{install_skills, SkillsInstallOptions};
 use multi_core::sync::vscode::{
     merge_extensions_json, merge_launch_json, merge_settings_json, merge_tasks_json,
     merge_vscode_configs, sync_devcontainer,
@@ -153,6 +154,11 @@ pub enum Command {
         /// Name of the branch to create and switch to.
         branch_name: String,
     },
+    /// Install the Multi agent skills for Codex and Claude Code.
+    Skills {
+        #[command(subcommand)]
+        command: SkillsCommand,
+    },
     /// Sync development environment and configurations.
     ///
     /// Without a subcommand, performs a complete sync: clones missing
@@ -173,7 +179,7 @@ impl Command {
     /// Commands excluded from the post-command branch check: `branch`
     /// reports branch state itself, `doctor` runs outside workspaces,
     /// `hooks` and `recent-users` are branch-independent, and `open` /
-    /// `service` are not workspace commands.
+    /// `service` / `skills` are not workspace commands.
     pub fn runs_post_branch_check(&self) -> bool {
         !matches!(
             self,
@@ -182,6 +188,7 @@ impl Command {
                 | Command::Hooks { .. }
                 | Command::Open { .. }
                 | Command::Service { .. }
+                | Command::Skills { .. }
                 | Command::Collaborator {
                     command: CollaboratorCommand::RecentUsers
                 }
@@ -257,6 +264,30 @@ pub enum HooksCommand {
     },
     /// Unset core.hooksPath wherever it points at the workspace hooks.
     Uninstall,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SkillsCommand {
+    /// Install the Multi skills.
+    ///
+    /// Without --dev this runs `npx skills add` for the published skills.
+    /// With --dev it runs the skills repo's scripts/install-dev.sh, which
+    /// symlinks the checkout into ~/.agents/skills and ~/.claude/skills so
+    /// edits are live.
+    Install(SkillsInstallArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SkillsInstallArgs {
+    /// Symlink the local skills repo checkout instead of copying the published skills.
+    #[arg(long)]
+    dev: bool,
+    /// Skills repo checkout to link with --dev (default: the multi-skills repo next to the current directory or a parent).
+    #[arg(long, value_name = "PATH")]
+    source: Option<PathBuf>,
+    /// Skill name to install. Repeatable. Default: all skills.
+    #[arg(long = "skill", value_name = "NAME")]
+    skills: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -422,6 +453,16 @@ pub fn run(cli: &Cli) -> Result<()> {
         }
         Command::Service { host, port } => multi_core::service::run(host, *port)?,
         Command::SetBranch { branch_name } => set_branch_in_all_repos(&cwd()?, branch_name)?,
+        Command::Skills {
+            command: SkillsCommand::Install(args),
+        } => install_skills(
+            &SkillsInstallOptions {
+                dev: args.dev,
+                source: args.source.clone(),
+                skills: args.skills.clone(),
+            },
+            &cwd()?,
+        )?,
         Command::Sync(args) => run_sync(args)?,
         Command::Worktree { command } => match command {
             WorktreeCommand::Add(args) => {
@@ -657,6 +698,33 @@ mod tests {
         match cli.command {
             Command::Git { git_args } => assert_eq!(git_args, vec!["branch", "--show-current"]),
             _ => panic!("expected git"),
+        }
+    }
+
+    #[test]
+    fn skills_install_parses_dev_source_and_repeated_skill() {
+        let cli = Cli::parse_from([
+            "multi",
+            "skills",
+            "install",
+            "--dev",
+            "--source",
+            "/tmp/multi-skills",
+            "--skill",
+            "multi-workspace",
+            "--skill",
+            "other",
+        ]);
+        assert!(!cli.command.runs_post_branch_check());
+        match cli.command {
+            Command::Skills {
+                command: SkillsCommand::Install(args),
+            } => {
+                assert!(args.dev);
+                assert_eq!(args.source, Some(PathBuf::from("/tmp/multi-skills")));
+                assert_eq!(args.skills, vec!["multi-workspace", "other"]);
+            }
+            _ => panic!("expected skills install"),
         }
     }
 

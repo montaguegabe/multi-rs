@@ -31,6 +31,7 @@ pub mod repo_urls;
 pub mod repos;
 pub mod service;
 pub mod settings;
+pub mod skills;
 pub mod sync;
 pub mod worktree;
 
