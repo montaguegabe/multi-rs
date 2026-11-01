@@ -107,6 +107,14 @@ impl Settings {
             .unwrap_or_default()
     }
 
+    /// `"<key>": {"enabled": bool}` sections, defaulting to `default`.
+    pub fn section_enabled(&self, key: &str, default: bool) -> bool {
+        match self.get(key).and_then(Value::as_object) {
+            Some(section) => section.get("enabled").map(truthy).unwrap_or(default),
+            None => default,
+        }
+    }
+
     pub fn agent_instructions(&self) -> AgentInstructions {
         let section = self
             .get("agentInstructions")

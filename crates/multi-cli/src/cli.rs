@@ -22,7 +22,7 @@ use multi_core::sync::vscode::{
     merge_extensions_json, merge_launch_json, merge_settings_json, merge_tasks_json,
     merge_vscode_configs, sync_devcontainer,
 };
-use multi_core::sync::{agents, github, sync, SyncOptions};
+use multi_core::sync::{agents, codex, github, skills, sync, SyncOptions};
 use multi_core::worktree::{add_worktree, WorktreeAddOptions};
 use multi_core::Paths;
 
@@ -348,6 +348,10 @@ pub enum SyncCommand {
     Agents,
     /// Sync GitHub Actions workflow files into root .github/workflows (monorepo mode only).
     Github,
+    /// Generate root AGENTS.override.md so Codex sees sub-repo AGENTS.md files.
+    Codex,
+    /// Link sub-repo .agents/skills into the root so Codex discovers them.
+    Skills,
 }
 
 #[derive(Debug, Subcommand)]
@@ -533,6 +537,16 @@ fn run_sync(args: &SyncArgs) -> Result<()> {
                 ));
             }
             github::sync_all_github_actions(&paths)
+        }
+        Some(SyncCommand::Codex) => {
+            let paths = workspace(install_set)?;
+            update_gitignore_with_generated_files(&paths)?;
+            codex::sync_all_codex(&paths)
+        }
+        Some(SyncCommand::Skills) => {
+            let paths = workspace(install_set)?;
+            update_gitignore_with_generated_files(&paths)?;
+            skills::sync_all_skills(&paths)
         }
     }
 }

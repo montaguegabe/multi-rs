@@ -1,8 +1,11 @@
 //! `multi sync`: clone/symlink repos, install hooks, merge VS Code config,
-//! generate agent files and monorepo GitHub workflows.
+//! generate agent files, the Codex `AGENTS.override.md` and skill links, and
+//! monorepo GitHub workflows.
 
 pub mod agents;
+pub mod codex;
 pub mod github;
+pub mod skills;
 pub mod vscode;
 
 use std::path::Path;
@@ -220,7 +223,9 @@ pub fn sync(root_dir: &Path, options: &SyncOptions) -> Result<()> {
     update_gitignore_with_generated_files(&paths)?;
     vscode::merge_vscode_configs(&paths)?;
     agents::sync_all_agents(&paths)?;
+    codex::sync_all_codex(&paths)?;
     github::sync_all_github_actions(&paths)?;
+    skills::sync_all_skills(&paths)?;
 
     log::info!("✅ Sync complete");
     Ok(())

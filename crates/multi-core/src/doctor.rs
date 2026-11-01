@@ -11,6 +11,7 @@ use crate::git::{git_output, git_output_timeout, is_git_repo_root, run_git};
 use crate::hooks::{configured_hooks_path, hooks_status};
 use crate::paths::Paths;
 use crate::repos::{load_repos, Repository};
+use crate::sync::codex::codex_override_problem;
 
 const REMOTE_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -340,6 +341,13 @@ fn warn_on_uninstalled_hooks(report: &mut DoctorReport, paths: &Paths) -> Result
 }
 
 /// Run every diagnostic for the workspace containing `target_dir`.
+fn warn_on_codex_override_problems(report: &mut DoctorReport, paths: &Paths) -> Result<()> {
+    if let Some(problem) = codex_override_problem(paths)? {
+        report.warnings.push(problem);
+    }
+    Ok(())
+}
+
 pub fn run_doctor_checks(target_dir: &Path, options: &DoctorOptions) -> DoctorReport {
     let mut report = DoctorReport::default();
     let paths = match Paths::discover(target_dir, None) {
@@ -387,6 +395,7 @@ pub fn run_doctor_checks(target_dir: &Path, options: &DoctorOptions) -> DoctorRe
         warn_on_subrepo_submodules(&mut report, &paths, &repos);
         warn_on_repo_disk_mismatches(&mut report, &paths, &repos, is_monorepo);
         warn_on_uninstalled_hooks(&mut report, &paths)?;
+        warn_on_codex_override_problems(&mut report, &paths)?;
         Ok(())
     })();
     if let Err(err) = checks {

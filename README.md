@@ -10,6 +10,8 @@ Features:
 - Supports optional `installSets` so installer scripts can sync only a public/runtime subset of repos.
 - Optionally generates `CLAUDE.md` and `AGENTS.md` files from tracked `AGENTS.parts/*.md` files.
 - In monorepo mode, syncs sub-repo GitHub workflows into root `.github/workflows`.
+- Generates a root `AGENTS.override.md` for Codex that repeats the root `AGENTS.md` and appends every sub-repo's `AGENTS.md`, because Codex reads one instruction file per directory and never looks into sub-repos. The root `AGENTS.md` is never modified, and an override multi did not write is left alone with a warning. Disable with `"codexOverride": {"enabled": false}`.
+- Links sub-repo `.agents/skills` into the root `.agents/skills` so Codex, which only searches upward from the working directory, discovers them. Claude Code already finds nested `.claude/skills` and `CLAUDE.md` files on its own, so those are left in place. Disable with `"skills": {"enabled": false}`.
 - Workspace-level git hooks, isolated workspace worktrees, cross-repo git commands, branch alignment checks and diagnostics.
 - A loopback-only JSON service and a library API (`multi-core`) used by Multi Desktop for workspace diffs, branch visibility and status.
 
@@ -68,7 +70,7 @@ Product-prefixed slugs are shortened to local folder names when they match the w
 | `multi init` | Initialize a new workspace (interactive or with `--repo` / `--github-repo`) |
 | `multi add URL [--name NAME]` | Add a repository and sync |
 | `multi remove NAME [--delete] [--force]` | Remove a repository from `multi.json` |
-| `multi sync [--install-set NAME]` | Clone missing repos, install hooks, merge `.vscode`, generate agent files, sync monorepo workflows |
+| `multi sync [--install-set NAME]` | Clone missing repos, install hooks, merge `.vscode`, generate agent files, Codex `AGENTS.override.md` and skill links, sync monorepo workflows |
 | `multi sync vscode [settings\|launch\|tasks\|extensions\|devcontainer]` | Merge only VS Code configuration |
 | `multi sync agents` | Generate `AGENTS.md` / `CLAUDE.md` from `AGENTS.parts/*.md` (opt-in) |
 | `multi sync github` | Sync root GitHub Actions workflows (monorepo mode) |
