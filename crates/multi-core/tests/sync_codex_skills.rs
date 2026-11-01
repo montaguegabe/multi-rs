@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use common::*;
 use multi_core::doctor::{run_doctor_checks, DoctorOptions};
 use multi_core::ignore_files::update_gitignore_with_generated_files;
-use multi_core::sync::codex::{sync_all_codex, GENERATED_MARKER, OVERRIDE_FILENAME};
+use multi_core::sync::codex::{
+    sync_all_codex, GENERATED_MARKER, OVERRIDE_FILENAME, OVERRIDE_IGNORE_ENTRY,
+};
 use multi_core::sync::skills::sync_all_skills;
 use multi_core::Paths;
 use serde_json::json;
@@ -131,7 +133,7 @@ fn override_and_skill_links_are_listed_in_the_generated_files_block() {
         .lines()
         .map(str::to_string)
         .collect();
-    assert!(lines.contains(&OVERRIDE_FILENAME.to_string()));
+    assert!(lines.contains(&OVERRIDE_IGNORE_ENTRY.to_string()));
     assert!(lines.contains(&"/.agents/skills/deploy".to_string()));
 }
 
@@ -210,4 +212,97 @@ fn disabled_skills_setting_creates_nothing() {
     sync_all_skills(&paths(&ws)).unwrap();
 
     assert!(!ws.join(".agents").exists());
+}
+
+#[test]
+fn disabling_removes_the_generated_override_and_doctor_flags_a_leftover() {
+    let (_tmp, ws) = workspace_dir(&["api"], json!({}));
+    write(&ws.join("api/AGENTS.md"), "# API rules\n");
+    sync_all_codex(&paths(&ws)).unwrap();
+    assert!(ws.join(OVERRIDE_FILENAME).exists());
+
+    let mut config: serde_json::Value =
+        serde_json::from_str(&read(&ws.join("multi.json"))).unwrap();
+    config["codexOverride"] = json!(false);
+    write(&ws.join("multi.json"), &config.to_string());
+
+    assert!(run_doctor_checks(&ws, &NO_REMOTES)
+        .warnings
+        .iter()
+        .any(|w| w.contains("codexOverride is disabled")));
+    sync_all_codex(&paths(&ws)).unwrap();
+    assert!(!ws.join(OVERRIDE_FILENAME).exists());
+    assert!(run_doctor_checks(&ws, &NO_REMOTES)
+        .warnings
+        .iter()
+        .all(|w| !w.contains(OVERRIDE_FILENAME)));
+}
+
+#[test]
+fn disabling_removes_managed_skill_links() {
+    let (_tmp, ws) = workspace_dir(&["api"], json!({}));
+    add_skill(&ws, "api", "deploy");
+    sync_all_skills(&paths(&ws)).unwrap();
+    assert!(ws.join(".agents/skills/deploy").is_symlink());
+
+    let mut config: serde_json::Value =
+        serde_json::from_str(&read(&ws.join("multi.json"))).unwrap();
+    config["skills"] = json!({"enabled": false});
+    write(&ws.join("multi.json"), &config.to_string());
+    sync_all_skills(&paths(&ws)).unwrap();
+
+    assert!(!ws.join(".agents/skills/deploy").is_symlink());
+}
+
+#[test]
+fn hand_made_and_install_set_excluded_links_to_valid_skills_survive() {
+    let (_tmp, ws) = workspace_dir(&["api", "web"], json!({}));
+    add_skill(&ws, "api", "deploy");
+    add_skill(&ws, "web", "release");
+    sync_all_skills(&paths(&ws)).unwrap();
+    // A hand-made link, in the managed shape, to a skill outside multi.json.
+    write(
+        &ws.join("vendor/.agents/skills/vendored/SKILL.md"),
+        "vendored\n",
+    );
+    std::os::unix::fs::symlink(
+        "../../vendor/.agents/skills/vendored",
+        ws.join(".agents/skills/vendored"),
+    )
+    .unwrap();
+
+    let mut config: serde_json::Value =
+        serde_json::from_str(&read(&ws.join("multi.json"))).unwrap();
+    config["repos"][1]["installSets"] = json!(["dev"]);
+    write(&ws.join("multi.json"), &config.to_string());
+    sync_all_skills(&Paths::at_root(&ws, Some("default"))).unwrap();
+
+    assert!(ws.join(".agents/skills/deploy").is_symlink());
+    assert!(
+        ws.join(".agents/skills/release").is_symlink(),
+        "excluded repo's valid link kept"
+    );
+    assert!(
+        ws.join(".agents/skills/vendored").is_symlink(),
+        "hand-made valid link kept"
+    );
+}
+
+#[test]
+fn empty_repo_list_still_updates_the_generated_files_block() {
+    let (_tmp, ws) = workspace_dir(&[], json!({}));
+
+    update_gitignore_with_generated_files(&paths(&ws)).unwrap();
+
+    assert!(read(&ws.join(".gitignore")).contains(".vscode/settings.json"));
+}
+
+#[test]
+fn monorepo_parts_without_generated_sub_repo_files_do_not_claim_an_override() {
+    let (_tmp, ws) = workspace_dir(&["api"], json!({"agentInstructions": {"enabled": true}}));
+    write(&ws.join("api/AGENTS.parts/10-rules.md"), "rules\n");
+
+    update_gitignore_with_generated_files(&paths(&ws)).unwrap();
+
+    assert!(!read(&ws.join(".gitignore")).contains(OVERRIDE_IGNORE_ENTRY));
 }

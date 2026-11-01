@@ -130,7 +130,14 @@ pub fn symlink(target: &Path, link: &Path) -> Result<()> {
 
 #[cfg(windows)]
 pub fn symlink(target: &Path, link: &Path) -> Result<()> {
-    if target.is_dir() {
+    // A relative `target` is relative to the link's directory, not the
+    // process working directory, so resolve it there before probing.
+    let probe = if target.is_absolute() {
+        target.to_path_buf()
+    } else {
+        link.parent().unwrap_or(Path::new(".")).join(target)
+    };
+    if probe.is_dir() {
         std::os::windows::fs::symlink_dir(target, link).map_err(|e| Error::io(link, e))
     } else {
         std::os::windows::fs::symlink_file(target, link).map_err(|e| Error::io(link, e))

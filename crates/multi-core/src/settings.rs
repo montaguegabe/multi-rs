@@ -107,11 +107,13 @@ impl Settings {
             .unwrap_or_default()
     }
 
-    /// `"<key>": {"enabled": bool}` sections, defaulting to `default`.
+    /// Whether a feature section is on: `"<key>": {"enabled": bool}` or the
+    /// shorthand `"<key>": bool`, defaulting to `default` when absent.
     pub fn section_enabled(&self, key: &str, default: bool) -> bool {
-        match self.get(key).and_then(Value::as_object) {
-            Some(section) => section.get("enabled").map(truthy).unwrap_or(default),
-            None => default,
+        match self.get(key) {
+            Some(Value::Object(section)) => section.get("enabled").map(truthy).unwrap_or(default),
+            Some(Value::Null) | None => default,
+            Some(value) => truthy(value),
         }
     }
 
@@ -129,7 +131,7 @@ impl Settings {
             .unwrap_or(DEFAULT_AGENTS_PARTS_DIR)
             .to_string();
         AgentInstructions {
-            enabled: section.get("enabled").map(truthy).unwrap_or(false),
+            enabled: self.section_enabled("agentInstructions", false),
             parts_dir,
             include_repo_descriptions: section
                 .get("includeRepoDescriptions")

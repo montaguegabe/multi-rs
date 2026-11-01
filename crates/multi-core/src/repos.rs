@@ -273,6 +273,16 @@ pub fn load_repos_from_settings(
     Ok(result)
 }
 
+/// Like [`load_repos`], but an empty workspace (or an install set that
+/// matches nothing) yields an empty list instead of an error, for sync steps
+/// that are simply a no-op without repos.
+pub fn load_repos_or_empty(paths: &Paths) -> Result<Vec<Repository>> {
+    match load_repos(paths) {
+        Err(Error::NoRepositories(_)) => Ok(Vec::new()),
+        other => other,
+    }
+}
+
 /// Like [`load_repos`], minus repos that are not cloned in this workspace.
 pub fn load_cloned_repos(paths: &Paths) -> Result<Vec<Repository>> {
     Ok(load_repos(paths)?

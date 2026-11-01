@@ -11,7 +11,7 @@ use crate::managed_blocks::{
 use crate::paths::Paths;
 use crate::repos::load_repos;
 use crate::sync::agents::would_generate_agents_for_repo;
-use crate::sync::codex::{would_generate_codex_override, OVERRIDE_FILENAME};
+use crate::sync::codex::{would_generate_codex_override, OVERRIDE_IGNORE_ENTRY};
 use crate::sync::skills::root_skill_link_entries;
 
 pub const REPO_DIRECTORIES_BLOCK: ManagedBlock = ManagedBlock::new("repo-directories");
@@ -180,7 +180,7 @@ pub fn update_gitignore_with_generated_files(paths: &Paths) -> Result<()> {
         root_entries.push("AGENTS.md".to_string());
     }
     if would_generate_codex_override(paths)? {
-        root_entries.push(OVERRIDE_FILENAME.to_string());
+        root_entries.push(OVERRIDE_IGNORE_ENTRY.to_string());
     }
     root_entries.extend(root_skill_link_entries(paths)?);
     IgnoreFile::new(paths.gitignore_path(), GENERATED_FILES_BLOCK)
