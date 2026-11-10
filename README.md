@@ -24,6 +24,14 @@ Features:
 
 ## Installation
 
+The `multi-workspace` PyPI package ships the prebuilt binary for macOS, Linux and Windows (no Python code runs; Python is only the package manager):
+
+```bash
+uv tool install multi-workspace   # or: pip install multi-workspace
+```
+
+Version 4.0.0 and later is this Rust implementation; 3.x was the retired Python one. With a Rust toolchain:
+
 ```bash
 cargo install --git https://github.com/montaguegabe/multi-rs multi-cli
 ```

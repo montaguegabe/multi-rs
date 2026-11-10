@@ -1,6 +1,6 @@
 # multi-rs
 
-Rust implementation of `multi` (CLI + `multi-core` library). Private remake; the Python `multi` repo is reference only and must never be pushed to from here.
+Rust implementation of `multi` (CLI + `multi-core` library). Remake; the Python `multi` repo is reference only and must never be pushed to from here.
 
 - `crates/multi-core`: all behavior. Keep the CLI (`crates/multi-cli`) a thin clap layer over it; the desktop app links `multi-core` directly.
 - Behavior and file formats (`multi.json`, managed `.gitignore` blocks, generated `.vscode` files, `AGENTS.parts` output) must stay compatible with existing multi workspaces.

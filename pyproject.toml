@@ -1,0 +1,30 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "multi-workspace"
+description = "multi: manage multiple Git repositories as one VS Code / Cursor workspace"
+readme = "README.md"
+authors = [{ name = "Gabe Montague", email = "gabemontague@outlook.com" }]
+requires-python = ">=3.8"
+license = "MIT"
+license-files = ["LICENSE"]
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+
+[project.urls]
+Repository = "https://github.com/montaguegabe/multi-rs"
+Issues = "https://github.com/montaguegabe/multi-rs/issues"
+
+# The wheel ships the Rust `multi` binary; there is no Python code.
+[tool.maturin]
+bindings = "bin"
+manifest-path = "crates/multi-cli/Cargo.toml"
+strip = true

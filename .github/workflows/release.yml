@@ -1,0 +1,145 @@
+name: Release
+
+# Every push to main publishes the Rust `multi` binary to PyPI as the
+# `multi-workspace` package (prebuilt wheels for macOS, Linux and Windows plus an
+# sdist), tags the commit and creates a GitHub release with the wheels.
+#
+# Versioning: the next version is the newest `vX.Y.Z` tag with its patch
+# bumped, or the version in Cargo.toml when that is higher. Bumping Cargo.toml
+# therefore makes the next release a minor or major; otherwise releases are
+# automatic patches. A commit that is already tagged is never published again.
+#
+# Publishing uses PyPI trusted publishing (OIDC) for this repository and
+# workflow. A `PYPI_API_TOKEN` repository secret is used instead when present.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.version.outputs.publish }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decide the release version
+        id: version
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          existing="$(git tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)"
+          if [[ -n "$existing" ]]; then
+            echo "HEAD is already released as $existing; nothing to do."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cargo_version="$(perl -ne 'print $1 and exit if /^version = "([^"]+)"/' Cargo.toml)"
+          latest="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          if [[ -n "$latest" ]]; then
+            IFS=. read -r major minor patch <<< "${latest#v}"
+            next="${major}.${minor}.$((patch + 1))"
+          else
+            next="$cargo_version"
+          fi
+          # A Cargo.toml version above the next patch wins (minor/major bump).
+          version="$(printf '%s\n%s\n' "$next" "$cargo_version" | sort -V | tail -n 1)"
+          echo "Releasing $version (latest tag: ${latest:-none}, Cargo.toml: $cargo_version)"
+          {
+            echo "publish=true"
+            echo "version=$version"
+            echo "tag=v$version"
+          } >> "$GITHUB_OUTPUT"
+
+  wheels:
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64
+          - os: ubuntu-latest
+            target: aarch64
+          - os: macos-latest
+            target: aarch64
+          - os: macos-latest
+            target: x86_64
+          - os: windows-latest
+            target: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set the release version in Cargo.toml
+        shell: bash
+        run: perl -pi -e 's/^version = "[^"]+"/version = "${{ needs.version.outputs.version }}"/' Cargo.toml && grep -m1 '^version' Cargo.toml
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: dist
+
+  sdist:
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set the release version in Cargo.toml
+        run: perl -pi -e 's/^version = "[^"]+"/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+  publish:
+    needs: [version, wheels, sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -l dist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Empty when the secret is unset, which makes the action use
+          # trusted publishing instead.
+          password: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Tag and create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" dist/* --title "$TAG" --generate-notes
